@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trading Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #21262d;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --orange: #d29922;
+      --purple: #bc8cff;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px;
+    }
+    header h1 { font-size: 16px; font-weight: 700; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── SYNC STATUS ── */
+    #sync-bar {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--muted);
+    }
+    #sync-icon { font-size: 14px; }
+    .syncing  #sync-icon { animation: spin .8s linear infinite; }
+    .sync-ok  { color: var(--green); }
+    .sync-err { color: var(--red); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── LAYOUT ── */
+    main { padding: 16px; display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── CARD ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      flex-wrap: wrap; gap: 8px;
+    }
+    .card-head h2 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .tag-blue   { background: #1f3a5f; color: var(--accent); }
+    .tag-green  { background: #1a3a2a; color: var(--green); }
+    .tag-orange { background: #3a2210; color: var(--orange); }
+
+    /* ── BUTTONS ── */
+    .btn {
+      border: none; cursor: pointer; border-radius: 6px;
+      font-size: 12px; font-weight: 600; padding: 6px 12px;
+      display: inline-flex; align-items: center; gap: 5px; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .8; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-sm   { padding: 4px 8px; font-size: 11px; }
+    .btn-edit { background: #1f3a5f; color: var(--accent); }
+    .btn-del  { background: #3a1a1a; color: var(--red); }
+    .btn-cancel { background: #21262d; color: var(--text); }
+
+    /* ── TABLE ── */
+    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; min-width: 400px; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted); padding: 10px 12px;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid #1c2128; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1c2128; }
+    .actions { display: flex; gap: 6px; }
+
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .pill-green  { background:#1a3a2a; color:var(--green); }
+    .pill-red    { background:#3a1a1a; color:var(--red); }
+    .pill-blue   { background:#1f3a5f; color:var(--accent); }
+    .pill-orange { background:#3a2210; color:var(--orange); }
+
+    .empty { padding: 32px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* ── SKELETON LOADER ── */
+    .skeleton { background: linear-gradient(90deg,#21262d 25%,#30363d 50%,#21262d 75%); background-size:200% 100%; animation: shimmer 1.4s infinite; border-radius:4px; height:14px; margin:10px 12px; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ── MODAL ── */
+    .overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75);
+      z-index: 200; align-items: center; justify-content: center; padding: 16px;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); width: 100%; max-width: 480px;
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+    }
+    .modal-head h3 { font-size: 14px; font-weight: 600; }
+    .close-btn { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; }
+    .modal-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
+    .field input, .field select, .field textarea {
+      width: 100%; background: #0d1117; border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: 13px;
+      outline: none; transition: border-color .15s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+    .field select option { background: #161b22; }
+    .modal-foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #21262d; border: 1px solid var(--border); color: var(--text);
+      padding: 10px 20px; border-radius: 8px; font-size: 13px;
+      opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 999; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+
+    @media (max-width: 480px) {
+      header h1 { font-size: 14px; }
+      .card-head { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot"></span>Trading Dashboard</h1>
+  <div id="sync-bar">
+    <span id="sync-icon">↻</span>
+    <span id="sync-text">Loading…</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- SECTION 1 — SPY GEX & HAN Levels -->
+  <div class="card">
+    <div class="card-head">
+      <h2><span class="tag tag-blue">SPY</span> GEX &amp; HAN Levels</h2>
+      <button class="btn btn-primary" onclick="openModal('gex')">+ Add Level</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Type</th><th>Level</th><th>Price</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="gex-tbody"></tbody>
+      </table>
+      <div class="skeleton" id="gex-skeleton"></div>
+      <div class="empty" id="gex-empty" style="display:none">No levels yet — add one above.</div>
+    </div>
+  </div>
+
+  <!-- SECTION 2 — Swing Call Suggestions -->
+  <div class="card">
+    <div class="card-head">
+      <h2><span class="tag tag-green">Swings</span> Call Suggestions</h2>
+      <button class="btn btn-primary" onclick="openModal('swing')">+ Add Trade</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Suggested By</th><th>Ticker</th><th>Strike</th><th>Direction</th><th>Contract $</th><th>Target</th><th></th></tr></thead>
+        <tbody id="swing-tbody"></tbody>
+      </table>
+      <div class="skeleton" id="swing-skeleton"></div>
+      <div class="empty" id="swing-empty" style="display:none">No swing ideas yet — add one above.</div>
+    </div>
+  </div>
+
+  <!-- SECTION 3 — Mike Alerts & Swings -->
+  <div class="card">
+    <div class="card-head">
+      <h2><span class="tag tag-orange">Mike</span> Alerts &amp; Swings</h2>
+      <button class="btn btn-primary" onclick="openModal('mike')">+ Add Alert</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Category</th><th>Ticker</th><th>Price / Level</th><th>Suggestion / Comment</th><th>Time</th><th></th></tr></thead>
+        <tbody id="mike-tbody"></tbody>
+      </table>
+      <div class="skeleton" id="mike-skeleton"></div>
+      <div class="empty" id="mike-empty" style="display:none">No alerts yet — add one above.</div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── MODALS ───────────────────────────────────────── -->
+
+<!-- GEX Modal -->
+<div class="overlay" id="modal-gex">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="gex-modal-title">Add GEX / HAN Level</h3>
+      <button class="close-btn" onclick="closeModal('gex')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Type</label>
+        <select id="gex-type"><option>GEX</option><option>HAN</option><option>Support</option><option>Resistance</option><option>VWAP</option><option>Other</option></select>
+      </div>
+      <div class="field"><label>Level Name</label>
+        <input id="gex-level" placeholder="e.g. Put Wall, Call Wall, Key Level" />
+      </div>
+      <div class="field"><label>Price ($)</label>
+        <input id="gex-price" type="number" step="0.01" placeholder="e.g. 523.50" />
+      </div>
+      <div class="field"><label>Notes</label>
+        <input id="gex-notes" placeholder="Optional notes" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-cancel" onclick="closeModal('gex')">Cancel</button>
+      <button class="btn btn-primary" id="gex-save-btn" onclick="saveGex()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Swing Modal -->
+<div class="overlay" id="modal-swing">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="swing-modal-title">Add Swing Trade</h3>
+      <button class="close-btn" onclick="closeModal('swing')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Suggested By</label>
+        <input id="sw-name" placeholder="e.g. Mike, Discord, Personal" />
+      </div>
+      <div class="field"><label>Stock Ticker</label>
+        <input id="sw-ticker" placeholder="e.g. AAPL, SPY, NVDA" style="text-transform:uppercase" />
+      </div>
+      <div class="field"><label>Strike Price</label>
+        <input id="sw-strike" placeholder="e.g. 185C 06/21" />
+      </div>
+      <div class="field"><label>Direction</label>
+        <select id="sw-dir"><option value="Call">Call (Bullish)</option><option value="Put">Put (Bearish)</option></select>
+      </div>
+      <div class="field"><label>Contract Value ($)</label>
+        <input id="sw-contract" type="number" step="0.01" placeholder="e.g. 1.50" />
+      </div>
+      <div class="field"><label>Target ($)</label>
+        <input id="sw-target" placeholder="e.g. 3.00 or +100%" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-cancel" onclick="closeModal('swing')">Cancel</button>
+      <button class="btn btn-primary" id="swing-save-btn" onclick="saveSwing()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mike Modal -->
+<div class="overlay" id="modal-mike">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="mike-modal-title">Add Mike Alert / Swing</h3>
+      <button class="close-btn" onclick="closeModal('mike')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Category</label>
+        <select id="mk-cat"><option>Alert</option><option>Swing</option><option>Watchlist</option><option>Note</option></select>
+      </div>
+      <div class="field"><label>Ticker</label>
+        <input id="mk-ticker" placeholder="e.g. SPY, NVDA, AAPL" style="text-transform:uppercase" />
+      </div>
+      <div class="field"><label>Price / Level</label>
+        <input id="mk-price" placeholder="e.g. 524.00" />
+      </div>
+      <div class="field"><label>Suggestion / Comment</label>
+        <textarea id="mk-comment" rows="3" placeholder="e.g. Break above 525 targets 530, stop under 522..."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-cancel" onclick="closeModal('mike')">Cancel</button>
+      <button class="btn btn-primary" id="mike-save-btn" onclick="saveMike()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────
+const API = 'https://script.google.com/macros/s/AKfycbwvtgg8MAFXz7HvlBdFRptWsMyAVTdgOqvNWncIzF4H-QDD1b0Pruqvi26wmBJj8yIw/exec';
+const POLL_MS = 60000; // auto-refresh every 60 seconds
+
+// ── STATE ──────────────────────────────────────────────
+let state = { gex: [], swing: [], mike: [] };
+let editId = { gex: null, swing: null, mike: null };
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+// ── TOAST ──────────────────────────────────────────────
+function toast(msg, color) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = color || 'var(--border)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ── SYNC STATUS ────────────────────────────────────────
+function setSyncState(state) {
+  const bar  = document.getElementById('sync-bar');
+  const icon = document.getElementById('sync-icon');
+  const text = document.getElementById('sync-text');
+  bar.className = state;
+  if (state === 'syncing') { icon.textContent = '↻'; text.textContent = 'Syncing…'; }
+  if (state === 'sync-ok') { icon.textContent = '✓'; text.textContent = 'Synced · ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+  if (state === 'sync-err'){ icon.textContent = '✕'; text.textContent = 'Sync failed — retrying'; }
+}
+
+// ── API CALLS ──────────────────────────────────────────
+async function apiFetch(section) {
+  const res = await fetch(`${API}?section=${section}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+async function apiWrite(section, action, row) {
+  const res = await fetch(API, {
+    method: 'POST',
+    body: JSON.stringify({ section, action, row }),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'Write failed');
+}
+
+// ── LOAD ALL ───────────────────────────────────────────
+async function loadAll(silent) {
+  if (!silent) setSyncState('syncing');
+  try {
+    const [gex, swing, mike] = await Promise.all([
+      apiFetch('gex'), apiFetch('swing'), apiFetch('mike'),
+    ]);
+    state.gex   = gex;
+    state.swing = swing;
+    state.mike  = mike;
+    hideSkeleton();
+    renderGex(); renderSwing(); renderMike();
+    setSyncState('sync-ok');
+  } catch (e) {
+    hideSkeleton();
+    setSyncState('sync-err');
+    if (!silent) toast('⚠️ Could not load data. Check connection.', 'var(--red)');
+  }
+}
+
+function hideSkeleton() {
+  ['gex','swing','mike'].forEach(k => {
+    const s = document.getElementById(k + '-skeleton');
+    if (s) s.style.display = 'none';
+  });
+}
+
+// ── MODAL ──────────────────────────────────────────────
+function openModal(key, id) {
+  editId[key] = id || null;
+  document.getElementById('modal-' + key).classList.add('open');
+
+  if (key === 'gex') {
+    const r = id ? state.gex.find(x => x.id === id) : null;
+    document.getElementById('gex-modal-title').textContent = id ? 'Edit Level' : 'Add GEX / HAN Level';
+    document.getElementById('gex-type').value  = r?.type  || 'GEX';
+    document.getElementById('gex-level').value = r?.level || '';
+    document.getElementById('gex-price').value = r?.price || '';
+    document.getElementById('gex-notes').value = r?.notes || '';
+  }
+  if (key === 'swing') {
+    const r = id ? state.swing.find(x => x.id === id) : null;
+    document.getElementById('swing-modal-title').textContent = id ? 'Edit Trade' : 'Add Swing Trade';
+    document.getElementById('sw-name').value     = r?.name     || '';
+    document.getElementById('sw-ticker').value   = r?.ticker   || '';
+    document.getElementById('sw-strike').value   = r?.strike   || '';
+    document.getElementById('sw-dir').value      = r?.dir      || 'Call';
+    document.getElementById('sw-contract').value = r?.contract || '';
+    document.getElementById('sw-target').value   = r?.target   || '';
+  }
+  if (key === 'mike') {
+    const r = id ? state.mike.find(x => x.id === id) : null;
+    document.getElementById('mike-modal-title').textContent = id ? 'Edit Alert' : 'Add Mike Alert / Swing';
+    document.getElementById('mk-cat').value     = r?.cat     || 'Alert';
+    document.getElementById('mk-ticker').value  = r?.ticker  || '';
+    document.getElementById('mk-price').value   = r?.price   || '';
+    document.getElementById('mk-comment').value = r?.comment || '';
+  }
+}
+
+function closeModal(key) { document.getElementById('modal-' + key).classList.remove('open'); }
+
+document.querySelectorAll('.overlay').forEach(el =>
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); })
+);
+
+// ── SAVE HELPERS ───────────────────────────────────────
+function setBusy(btnId, busy) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.textContent = busy ? 'Saving…' : 'Save';
+}
+
+async function persist(key, row) {
+  const btnId = key + '-save-btn';
+  setBusy(btnId, true);
+  // optimistic update
+  const idx = state[key].findIndex(r => r.id === row.id);
+  if (idx >= 0) state[key][idx] = row; else state[key].unshift(row);
+  renderAll();
+  closeModal(key);
+  try {
+    await apiWrite(key, 'upsert', row);
+    setSyncState('sync-ok');
+    toast('✓ Saved to Google Sheets', 'var(--green)');
+  } catch(e) {
+    setSyncState('sync-err');
+    toast('⚠️ Save failed — will retry on refresh', 'var(--red)');
+  } finally { setBusy(btnId, false); }
+}
+
+async function del(key, id) {
+  if (!confirm('Delete this entry?')) return;
+  state[key] = state[key].filter(r => r.id !== id);
+  renderAll();
+  try {
+    await apiWrite(key, 'delete', { id });
+    toast('Deleted', 'var(--red)');
+    setSyncState('sync-ok');
+  } catch(e) {
+    setSyncState('sync-err');
+    toast('⚠️ Delete failed — please refresh', 'var(--red)');
+  }
+}
+
+// ── SAVE ACTIONS ───────────────────────────────────────
+function saveGex() {
+  const row = {
+    id:    editId.gex || uid(),
+    type:  document.getElementById('gex-type').value,
+    level: document.getElementById('gex-level').value.trim(),
+    price: document.getElementById('gex-price').value.trim(),
+    notes: document.getElementById('gex-notes').value.trim(),
+  };
+  if (!row.level || !row.price) return alert('Level name and price are required.');
+  persist('gex', row);
+}
+
+function saveSwing() {
+  const row = {
+    id:       editId.swing || uid(),
+    name:     document.getElementById('sw-name').value.trim(),
+    ticker:   document.getElementById('sw-ticker').value.trim().toUpperCase(),
+    strike:   document.getElementById('sw-strike').value.trim(),
+    dir:      document.getElementById('sw-dir').value,
+    contract: document.getElementById('sw-contract').value.trim(),
+    target:   document.getElementById('sw-target').value.trim(),
+  };
+  if (!row.ticker) return alert('Ticker is required.');
+  persist('swing', row);
+}
+
+function saveMike() {
+  const row = {
+    id:      editId.mike || uid(),
+    cat:     document.getElementById('mk-cat').value,
+    ticker:  document.getElementById('mk-ticker').value.trim().toUpperCase(),
+    price:   document.getElementById('mk-price').value.trim(),
+    comment: document.getElementById('mk-comment').value.trim(),
+    ts:      new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' }),
+  };
+  if (!row.ticker) return alert('Ticker is required.');
+  persist('mike', row);
+}
+
+// ── RENDER ─────────────────────────────────────────────
+function renderAll() { renderGex(); renderSwing(); renderMike(); }
+
+function renderGex() {
+  const tbody = document.getElementById('gex-tbody');
+  const empty = document.getElementById('gex-empty');
+  tbody.innerHTML = '';
+  if (!state.gex.length) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  const typeColor = { GEX:'pill-blue', HAN:'pill-orange', Support:'pill-green', Resistance:'pill-red', VWAP:'pill-blue', Other:'' };
+  state.gex.forEach(r => {
+    const price = parseFloat(r.price);
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td><span class="pill ${typeColor[r.type]||''}">${esc(r.type)}</span></td>
+        <td>${esc(r.level)}</td>
+        <td><strong>${!isNaN(price) ? '$'+price.toFixed(2) : esc(r.price)}</strong></td>
+        <td style="color:var(--muted)">${esc(r.notes)}</td>
+        <td><div class="actions">
+          <button class="btn btn-sm btn-edit" onclick="openModal('gex','${r.id}')">Edit</button>
+          <button class="btn btn-sm btn-del"  onclick="del('gex','${r.id}')">Del</button>
+        </div></td>
+      </tr>`);
+  });
+}
+
+function renderSwing() {
+  const tbody = document.getElementById('swing-tbody');
+  const empty = document.getElementById('swing-empty');
+  tbody.innerHTML = '';
+  if (!state.swing.length) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  state.swing.forEach(r => {
+    const dc = r.dir === 'Call' ? 'pill-green' : 'pill-red';
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td>${esc(r.name)}</td>
+        <td><strong>${esc(r.ticker)}</strong></td>
+        <td>${esc(r.strike)}</td>
+        <td><span class="pill ${dc}">${esc(r.dir)}</span></td>
+        <td>${r.contract ? '$'+esc(r.contract) : '—'}</td>
+        <td style="color:var(--green)">${esc(r.target)||'—'}</td>
+        <td><div class="actions">
+          <button class="btn btn-sm btn-edit" onclick="openModal('swing','${r.id}')">Edit</button>
+          <button class="btn btn-sm btn-del"  onclick="del('swing','${r.id}')">Del</button>
+        </div></td>
+      </tr>`);
+  });
+}
+
+function renderMike() {
+  const tbody = document.getElementById('mike-tbody');
+  const empty = document.getElementById('mike-empty');
+  tbody.innerHTML = '';
+  if (!state.mike.length) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  const catColor = { Alert:'pill-red', Swing:'pill-green', Watchlist:'pill-blue', Note:'pill-orange' };
+  state.mike.forEach(r => {
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td><span class="pill ${catColor[r.cat]||''}">${esc(r.cat)}</span></td>
+        <td><strong>${esc(r.ticker)}</strong></td>
+        <td>${r.price ? '$'+esc(r.price) : '—'}</td>
+        <td style="color:#cdd9e5;max-width:260px;white-space:pre-wrap">${esc(r.comment)||'—'}</td>
+        <td style="color:var(--muted);white-space:nowrap">${esc(r.ts)||''}</td>
+        <td><div class="actions">
+          <button class="btn btn-sm btn-edit" onclick="openModal('mike','${r.id}')">Edit</button>
+          <button class="btn btn-sm btn-del"  onclick="del('mike','${r.id}')">Del</button>
+        </div></td>
+      </tr>`);
+  });
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── INIT + AUTO-REFRESH ────────────────────────────────
+loadAll();
+setInterval(() => loadAll(true), POLL_MS);
+</script>
+</body>
+</html>
