@@ -42,7 +42,7 @@ function doGet(e) {
     }
 
     if (action === 'upsert') {
-      const row = JSON.parse(decodeURIComponent(e.parameter.row));
+      const row = JSON.parse(e.parameter.row);
       upsertRow(section, row);
       return jsonOut({ success: true });
     }

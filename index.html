@@ -352,7 +352,8 @@ async function apiFetch(section) {
 
 async function apiWrite(section, action, row) {
   if (action === 'upsert') {
-    await apiCall({ action: 'upsert', section, row: encodeURIComponent(JSON.stringify(row)) });
+    // URLSearchParams encodes once — don't pre-encode
+    await apiCall({ action: 'upsert', section, row: JSON.stringify(row) });
   } else {
     await apiCall({ action: 'delete', section, id: row.id });
   }
