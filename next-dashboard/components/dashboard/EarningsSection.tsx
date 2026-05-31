@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, CalendarDays } from 'lucide-react';
 import { Earning } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -25,25 +26,25 @@ interface EarningsSectionProps {
   searchFilter: string;
 }
 
-const emptyEarning = (): Omit<Earning, 'id'> => ({
-  ticker: '',
-  earningsDate: '',
-  comments: '',
-});
+const emptyEarning = (): Omit<Earning, 'id'> => ({ ticker: '', earningsDate: '', comments: '' });
 
 export default function EarningsSection({ earnings, onUpdate, searchFilter }: EarningsSectionProps) {
-  const [editOpen, setEditOpen] = useState(false);
+  const [editOpen, setEditOpen]     = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [editing, setEditing] = useState<Earning | null>(null);
-  const [form, setForm] = useState(emptyEarning());
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [editing, setEditing]       = useState<Earning | null>(null);
+  const [detail, setDetail]         = useState<Earning | null>(null);
+  const [form, setForm]             = useState(emptyEarning());
 
   const filtered = earnings.filter((r) =>
     r.ticker.toLowerCase().includes(searchFilter.toLowerCase())
   );
 
+  function openDetail(row: Earning) { setDetail(row); setDetailOpen(true); }
+
   function openEdit(row: Earning | null) {
     if (row) { setEditing(row); setForm({ ticker: row.ticker, earningsDate: row.earningsDate, comments: row.comments }); }
-    else { setEditing(null); setForm(emptyEarning()); }
+    else     { setEditing(null); setForm(emptyEarning()); }
     setEditOpen(true);
   }
 
@@ -60,6 +61,7 @@ export default function EarningsSection({ earnings, onUpdate, searchFilter }: Ea
   }
 
   function handleDelete(row: Earning) { setEditing(row); setDeleteOpen(true); }
+
   function confirmDelete() {
     if (!editing) return;
     onUpdate(earnings.filter((r) => r.id !== editing.id));
@@ -91,9 +93,27 @@ export default function EarningsSection({ earnings, onUpdate, searchFilter }: Ea
               <tbody>
                 {filtered.map((row) => (
                   <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-2 px-2 font-semibold text-blue-600">{row.ticker}</td>
+                    {/* Clickable ticker */}
+                    <td className="py-2 px-2">
+                      <button
+                        onClick={() => openDetail(row)}
+                        className="font-semibold text-blue-600 hover:text-blue-800 hover:underline underline-offset-2 flex items-center gap-1 transition-colors"
+                      >
+                        {row.ticker}
+                        <ExternalLink className="h-3 w-3 opacity-50" />
+                      </button>
+                    </td>
                     <td className="py-2 px-2 text-gray-700 whitespace-nowrap">{row.earningsDate}</td>
-                    <td className="py-2 px-2 text-gray-500 max-w-[200px] truncate" title={row.comments}>{row.comments}</td>
+                    {/* Clickable comment */}
+                    <td className="py-2 px-2 max-w-[200px]">
+                      <button
+                        onClick={() => openDetail(row)}
+                        className="text-gray-500 hover:text-gray-800 text-left truncate w-full block transition-colors"
+                        title={row.comments}
+                      >
+                        {row.comments || <span className="italic text-gray-300">—</span>}
+                      </button>
+                    </td>
                     <td className="py-2 px-2">
                       <div className="flex items-center gap-1">
                         <button onClick={() => openEdit(row)} className="p-1 rounded hover:bg-blue-50 text-blue-500 transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
@@ -108,6 +128,43 @@ export default function EarningsSection({ earnings, onUpdate, searchFilter }: Ea
         )}
       </DashboardCard>
 
+      {/* ── DETAIL MODAL ─────────────────────────── */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <span className="text-blue-600 font-bold">{detail?.ticker}</span>
+              <Badge variant="outline" className="text-xs font-normal">Earnings</Badge>
+            </DialogTitle>
+            <DialogDescription>Full details for this earnings entry.</DialogDescription>
+          </DialogHeader>
+          {detail && (
+            <div className="space-y-3 py-1">
+              <div className="flex items-center gap-2 bg-blue-50 rounded-md px-3 py-2">
+                <CalendarDays className="h-4 w-4 text-blue-500 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold uppercase text-blue-400">Earnings Date</p>
+                  <p className="text-sm font-semibold text-blue-800">{detail.earningsDate || '—'}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-400 mb-1">Comments</p>
+                <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3 leading-relaxed whitespace-pre-wrap">
+                  {detail.comments || <span className="italic text-gray-400">No comments added.</span>}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => { setDetailOpen(false); openEdit(detail!); }}>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+            </Button>
+            <Button size="sm" onClick={() => setDetailOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT MODAL ───────────────────────────── */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader>
@@ -135,11 +192,12 @@ export default function EarningsSection({ earnings, onUpdate, searchFilter }: Ea
         </DialogContent>
       </Dialog>
 
+      {/* ── DELETE CONFIRM ───────────────────────── */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Delete Earning</DialogTitle>
-            <DialogDescription>Delete <strong>{editing?.ticker}</strong>?</DialogDescription>
+            <DialogDescription>Delete <strong>{editing?.ticker}</strong>? This cannot be undone.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
